@@ -1,0 +1,107 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields: email, role, profile, createdAt
+    //
+    // Collection: songs
+    // Fields: title, artist, album, lyrics, youtubeUrl, imageUrl, etc.
+    //
+    // Collection: prayer_requests
+    // Fields: userId, userName, userAvatar, request, timestamp, isAnonymous, prayCount, prayers
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(email) {
+      return isAuthenticated() && request.auth.token.email.lower() == email.lower();
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'admin' ||
+         request.auth.token.email == "alsaikumar22@gmail.com");
+    }
+
+    function isValidPrayerRequest(data) {
+      return data.userId is string &&
+             data.userName is string &&
+             data.request is string && data.request.size() < 2000 &&
+             data.timestamp is string &&
+             data.isAnonymous is bool &&
+             data.prayCount is int &&
+             data.prayers is list && data.prayers.size() <= 10000;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{email} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.auth.token.email.lower() == email.lower());
+      allow update: if isAdmin() || (isAuthenticated() && request.auth.token.email.lower() == email.lower() && request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
+    }
+
+    match /songs/{songId} {
+      allow read: if true;
+      allow write: if isAdmin();
+      
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isAuthenticated();
+        allow delete: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userId);
+      }
+    }
+
+    match /prayer_requests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+                    request.resource.data.userId == request.auth.token.email.lower() &&
+                    isValidPrayerRequest(request.resource.data) &&
+                    request.resource.data.prayCount == 0 &&
+                    request.resource.data.prayers.size() == 0;
+      
+      allow update: if isAuthenticated() && 
+                    (
+                      // Owner can update their own request (e.g. fix typo)
+                      (isOwner(resource.data.userId) && isValidPrayerRequest(request.resource.data)) ||
+                      // Any authenticated user can "Pray" for it
+                      (
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['prayCount', 'prayers']) &&
+                        request.resource.data.prayCount == resource.data.prayCount + 1 &&
+                        request.resource.data.prayers.size() == resource.data.prayers.size() + 1 &&
+                        // Ensure the user adding themselves is the one logged in
+                        (request.resource.data.prayers.hasAll(resource.data.prayers) && 
+                         request.resource.data.prayers.hasAll([request.auth.token.email.lower()])) &&
+                        !(request.auth.token.email.lower() in resource.data.prayers)
+                      )
+                    );
+      
+      allow delete: if isAdmin() || isOwner(resource.data.userId);
+    }
+
+    match /system_settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /bible_chapters/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

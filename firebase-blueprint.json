@@ -1,0 +1,70 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and role information",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "profile": {
+          "type": "object",
+          "properties": {
+            "displayName": { "type": "string" },
+            "bio": { "type": "string" },
+            "streak": { "type": "number" },
+            "versesRead": { "type": "number" },
+            "notificationsEnabled": { "type": "boolean" },
+            "avatar": { "type": "string" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role"]
+    },
+    "Song": {
+      "title": "Song",
+      "description": "Christian song lyrics and metadata",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "artist": { "type": "string" },
+        "album": { "type": "string" },
+        "lyrics": { "type": "string" },
+        "youtubeUrl": { "type": "string" },
+        "imageUrl": { "type": "string" }
+      },
+      "required": ["title", "artist", "lyrics"]
+    },
+    "PrayerRequest": {
+      "title": "Prayer Request",
+      "description": "A request for prayer shared with the community",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "request": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "isAnonymous": { "type": "boolean" },
+        "prayCount": { "type": "number" },
+        "prayers": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["userId", "userName", "request", "timestamp", "isAnonymous", "prayCount", "prayers"]
+    }
+  },
+  "firestore": {
+    "/users/{email}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/songs/{songId}": {
+      "schema": "Song",
+      "description": "Song database"
+    },
+    "/prayer_requests/{requestId}": {
+      "schema": "PrayerRequest",
+      "description": "Community prayer requests"
+    }
+  }
+}
